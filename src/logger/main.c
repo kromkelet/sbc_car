@@ -39,6 +39,11 @@ along with obdgpslogger.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "obdconfigfile.h"
 
+#include "networking.h"
+#include "unitserver.h"
+#include "reporter.h"
+#include "sender.h"
+
 #ifdef HAVE_GPSD
 #include "gps.h"
 
@@ -48,6 +53,13 @@ along with obdgpslogger.  If not, see <http://www.gnu.org/licenses/>.
 /// Port of gpsd
 #define GPSD_PORT "2947"
 #endif //HAVE_GPSD
+
+#define SBC_CAR_DEF_IP      "127.0.0.1"
+#define SBC_CAR_REG_PORT    40880
+#define SBC_CAR_UNIT_PORT   "40701"
+
+#define SBC_CAR_ID          (1)
+#define SBC_CAR_SKIN        "car_white"
 
 #ifdef HAVE_DBUS
 #include "obddbus.h"
@@ -452,6 +464,22 @@ int main(int argc, char** argv) {
 
 	obdbegintransaction(db);
 
+    int client_socket = 0;
+    const char *reg_ip = SBC_CAR_DEF_IP;
+    const int reg_port = SBC_CAR_REG_PORT;
+    const char *unit_port = SBC_CAR_UNIT_PORT;
+    char *gen_json;
+
+    netw_init(reg_port);
+    open_reg_serv(reg_port);
+
+    wait_on_any_unit_req(&client_socket);
+    printf("client_socket = %d\n", client_socket);
+
+    write(client_socket, unit_port, strlen(unit_port));
+
+    reporter_init(reg_ip, SBC_CAR_UNIT_PORT);
+
 	while(samplecount == -1 || samplecount-- > 0) {
 
 		struct timeval starttime; // start time through loop
@@ -497,7 +525,6 @@ int main(int argc, char** argv) {
 
 		enum obd_serial_status obdstatus;
 		if(-1 < obd_serial_port) {
-
 			// Get all the OBD data
 			for(i=0; i<obdnumcols-1; i++) {
 				float val;
@@ -606,6 +633,12 @@ int main(int argc, char** argv) {
 				printf("sqlite3 gps insert failed(%i): %s\n", rc, sqlite3_errmsg(db));
 			}
 			sqlite3_reset(gpsinsert);
+
+            gen_json = generate_json(SBC_CAR_ID, SBC_CAR_SKIN, lat, lon, speed, course);
+
+            handle_reports(gen_json, reg_ip, 40701);
+
+            free(gen_json);
 		}
 #endif //HAVE_GPSD
 
