@@ -44,6 +44,11 @@ along with obdgpslogger.  If not, see <http://www.gnu.org/licenses/>.
 #include "reporter.h"
 #include "sender.h"
 
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+#include "xlgyro_data_processor.h"
+
 #ifdef HAVE_GPSD
 #include "gps.h"
 
@@ -356,6 +361,8 @@ int main(int argc, char** argv) {
 	// sqlite return status
 	int rc;
 
+	int obd_speed = 3;
+
 	// Open the database and create the obd table
 	if(NULL == (db = opendb(databasename))) {
 		closeserial(obd_serial_port);
@@ -395,13 +402,16 @@ int main(int argc, char** argv) {
 
 	// All of these have obdnumcols-1 since the last column is time
 	int cmdlist[obdnumcols-1]; // Commands to send [index into obdcmds_mode1]
+	int sbc_cmdlist[obdnumcols-1];
 
-	int i,j;
-	for(i=0,j=0; i<sizeof(obdcmds_mode1)/sizeof(obdcmds_mode1[0]); i++) {
+	int i,j,sbc_iter;
+	for(i=0,j=0,sbc_iter=0; i<sizeof(obdcmds_mode1)/sizeof(obdcmds_mode1[0]); i++) {
 		if(NULL != obdcmds_mode1[i].db_column) {
 			if(isobdcapabilitysupported(obdcaps,i)) {
 				cmdlist[j] = i;
 				j++;
+				if(i == 0x0c)sbc_cmdlist[sbc_iter++]=i; //rpm
+				if(i == 0x0d)obd_speed = 5;
 			}
 		}
 	}
@@ -480,6 +490,18 @@ int main(int argc, char** argv) {
 
     reporter_init(reg_ip, SBC_CAR_UNIT_PORT);
 
+	int xlgyro_sock = 0, xlgyro_operating = 0, xlgyro_ret = 0;
+	struct sockaddr_in xlgyro_sockaddr;
+#define XLGYRO_BUF_SIZE (8192)
+	char xlgyro_buf[XLGYRO_BUF_SIZE] = {0};
+	int xlgyro_offset = 0;
+	int xlgyro_obstacle = 0;
+	
+	if(xlgyro_connect(&xlgyro_sock, &xlgyro_sockaddr) == 0) {
+		xlgyro_operating = 1;
+		printf("xlgyro: sock connected\n");
+	}
+
 	while(samplecount == -1 || samplecount-- > 0) {
 
 		struct timeval starttime; // start time through loop
@@ -523,6 +545,8 @@ int main(int argc, char** argv) {
 			sig_starttrip = 0;
 		}
 
+		int rpm = 0;
+
 		enum obd_serial_status obdstatus;
 		if(-1 < obd_serial_port) {
 			// Get all the OBD data
@@ -534,6 +558,8 @@ int main(int argc, char** argv) {
 
 				obdstatus = getobdvalue(obd_serial_port, cmdid, &val, numbytes, conv);
 				if(OBD_SUCCESS == obdstatus) {
+					if(cmdid == 0x0c)rpm = val;
+					if(cmdid == 0x0d)obd_speed = 7;
 #ifdef HAVE_DBUS
 					obddbussignalpid(&obdcmds_mode1[cmdlist[i]], val);
 #endif //HAVE_DBUS
@@ -633,8 +659,13 @@ int main(int argc, char** argv) {
 				printf("sqlite3 gps insert failed(%i): %s\n", rc, sqlite3_errmsg(db));
 			}
 			sqlite3_reset(gpsinsert);
-
-            gen_json = generate_json(SBC_CAR_ID, SBC_CAR_SKIN, lat, lon, speed, course);
+			
+			if(xlgyro_operating) {
+				xlgyro_get_info(xlgyro_sock, xlgyro_buf, XLGYRO_BUF_SIZE, &xlgyro_offset, &xlgyro_obstacle);
+				if(xlgyro_obstacle)printf("\n\nObstacle!\n\n");
+			}
+			
+            gen_json = generate_json(SBC_CAR_ID, SBC_CAR_SKIN, lat, lon, (int)(speed*3.6), course, rpm, xlgyro_obstacle);
 
             handle_reports(gen_json, reg_ip, 40701);
 

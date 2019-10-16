@@ -55,6 +55,7 @@ void handle_reports(const char *message, const char *ip, const int port)
     usleep(UPD_TIME_MS * 1000);
 }
 
+#if 0
 void netw_main(double lat, double lon, double speed, double course)
 {
     int client_socket = 0;
@@ -79,3 +80,4 @@ void netw_main(double lat, double lon, double speed, double course)
 
     free(gen_json);
 }
+#endif

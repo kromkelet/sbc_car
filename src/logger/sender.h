@@ -1,1 +1,1 @@
-char *generate_json(int, char*, double, double, double, double);
+char *generate_json(int, char*, double, double, int speed, double course, int rpm, int pit);
