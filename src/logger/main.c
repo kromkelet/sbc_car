@@ -496,12 +496,12 @@ int main(int argc, char** argv) {
 	char xlgyro_buf[XLGYRO_BUF_SIZE] = {0};
 	int xlgyro_offset = 0;
 	int xlgyro_obstacle = 0;
-	
+#ifdef XLGYRO_ENABLED	
 	if(xlgyro_connect(&xlgyro_sock, &xlgyro_sockaddr) == 0) {
 		xlgyro_operating = 1;
 		printf("xlgyro: sock connected\n");
 	}
-
+#endif
 	while(samplecount == -1 || samplecount-- > 0) {
 
 		struct timeval starttime; // start time through loop
@@ -660,11 +660,12 @@ int main(int argc, char** argv) {
 			}
 			sqlite3_reset(gpsinsert);
 			
+#ifdef XLGYRO_ENABLED
 			if(xlgyro_operating) {
 				xlgyro_get_info(xlgyro_sock, xlgyro_buf, XLGYRO_BUF_SIZE, &xlgyro_offset, &xlgyro_obstacle);
 				if(xlgyro_obstacle)printf("\n\nObstacle!\n\n");
 			}
-			
+#endif
             gen_json = generate_json(SBC_CAR_ID, SBC_CAR_SKIN, lat, lon, (int)(speed*3.6), course, rpm, xlgyro_obstacle);
 
             handle_reports(gen_json, reg_ip, 40701);
