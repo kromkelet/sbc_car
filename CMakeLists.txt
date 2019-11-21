@@ -64,6 +64,10 @@ IF(NOT OBD_DISABLE_GUI)
 	FIND_PACKAGE(FLTK)
 ENDIF(NOT OBD_DISABLE_GUI)
 
+IF(CMAKE_XLGYRO_OPTION)
+	add_compile_definitions(XLGYRO_ENABLED)
+ENDIF(CMAKE_XLGYRO_OPTION)
+
 # Default database name
 SET(OBD_DEFAULT_DATABASE "./obdgpslogger.db" CACHE STRING "Default database filename for all obdgpslogger modules")
 
@@ -122,6 +126,7 @@ IF("${CMAKE_SYSTEM}" MATCHES "Linux")
     SET(CKSQLITE_LIBRARIES ${CKSQLITE_LIBRARIES} pthread dl)
 ENDIF("${CMAKE_SYSTEM}" MATCHES "Linux")
 
+SET(JSONPARSER_LIBRARIES jsonparse)
 
 INCLUDE_DIRECTORIES(
 	src/obdinfo/
@@ -134,6 +139,9 @@ IF(OBD_SQLITE_INCLUDED_LIB)
 	)
 	ADD_SUBDIRECTORY(libs/sqlite3)
 ENDIF(OBD_SQLITE_INCLUDED_LIB)
+
+INCLUDE_DIRECTORIES(libs/libjsonparse/include)
+ADD_SUBDIRECTORY(libs/libjsonparse)
 
 IF("${CMAKE_SYSTEM}" MATCHES "Windows")
 	MESSAGE(STATUS "Logger and GUI modules not available on windows currently")

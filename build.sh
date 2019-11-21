@@ -22,7 +22,7 @@ do
         --pits)
                 echo 'Build for pits on road demo'
                 CMAKE_OPTS="\
-                        -DXLGYRO_ENABLED \
+                        -DCMAKE_XLGYRO_OPTION=XLGYRO_ENABLED \
                         ${CMAKE_OPTS}"
                 release_not_specified=false
         ;;
